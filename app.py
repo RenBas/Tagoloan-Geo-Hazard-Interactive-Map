@@ -1,7 +1,6 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-import json
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -14,7 +13,7 @@ st.set_page_config(
 st.sidebar.title(" Tagoloan River Basin")
 st.sidebar.markdown("**PAGASA / DENR-MGB Hazard Map**")
 st.sidebar.markdown("---")
-st.sidebar.info("This interactive map uses Folium, which requires no external API keys and is fully stable on Streamlit Cloud.")
+st.sidebar.info("This interactive map uses Folium. It requires no external API keys and is fully stable on Streamlit Cloud.")
 
 # --- MAIN UI ---
 st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
@@ -48,7 +47,6 @@ geojson_data = {
 }
 
 # --- CREATE FOLIUM MAP ---
-# We use CartoDB Positron tiles because they are free and require no API key
 m = folium.Map(location=[8.42, 124.75], zoom_start=10, tiles='CartoDB positron')
 
 # Add GeoJSON Polygons (Hazards & Boundaries)
@@ -67,7 +65,8 @@ folium.GeoJson(
     tooltip=folium.GeoJsonTooltip(
         fields=['name', 'hazard_level', 'description'],
         aliases=['Zone:', 'Hazard Level:', 'Description:'],
-        style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
+        labels=True,
+        style="background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;"
     )
 ).add_to(m)
 
@@ -87,7 +86,7 @@ for feature in geojson_data["features"]:
         folium.Marker(
             location=[lat, lon],
             popup=folium.Popup(name, max_width=200),
-            icon=folium.Icon(color=color, icon='info-sign')
+            icon=folium.Icon(color=color, icon='info') # FIXED: Changed 'info-sign' to 'info'
         ).add_to(m)
 
 # Add Layer Control
