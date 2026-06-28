@@ -12,8 +12,8 @@ st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
 # Change these numbers to slide the map. 
 # Positive NUDGE_LON moves it Right, Negative moves it Left.
 # Positive NUDGE_LAT moves it Up, Negative moves it Down.
-NUDGE_LON = 0.00  # Try values like 0.02 or -0.02
-NUDGE_LAT = 0.00  # Try values like 0.02 or -0.02
+NUDGE_LON = 0.02  # Try values like 0.02 or -0.02
+NUDGE_LAT = 0.02  # Try values like 0.02 or -0.02
 
 # --- GEOJSON DATA ---
 geojson_data = {"type": "FeatureCollection", "features": [
