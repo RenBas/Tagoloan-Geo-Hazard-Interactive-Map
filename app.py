@@ -10,7 +10,7 @@ col_title, col_compass = st.columns([5, 1])
 
 with col_title:
     st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
-    st.caption("PAGASA / DENR-MGB Hazard Map. Use the sidebar sliders to align the shaded basin with the actual river.")
+    st.caption("PAGASA / DENR-MGB Hazard Map. Use the sidebar sliders to push the shaded basin into alignment with the actual river.")
 
 with col_compass:
     compass_html = """
@@ -23,9 +23,8 @@ with col_compass:
             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; background-color: #333; border-radius: 50%;"></div>
         </div>
         <div style="margin-top: 8px; font-size: 11px; text-align: center; color: #555; line-height: 1.2;">
-            Shift layer:<br>
-            <b>▲ North</b> | <b>▼ South</b><br>
-            <b>◀ West</b> | <b>East ▶</b>
+            Push layer:<br>
+            <b>▲ N</b> | <b>▼ S</b> | <b>◀ W</b> | <b>E ▶</b>
         </div>
     </div>
     """
@@ -33,27 +32,28 @@ with col_compass:
 
 st.markdown("---")
 
-# --- SIDEBAR CONTROLS ---
+# --- SIDEBAR CONTROLS (4 DIRECTIONAL SLIDERS) ---
 st.sidebar.title("⚙️ Map Controls")
 st.sidebar.markdown("---")
-st.sidebar.subheader(" Align Map Layer")
-st.sidebar.caption("Use your mouse to drag these sliders to align the shaded basin with the actual river on the base map.")
+st.sidebar.subheader("🧭 Align Map Layer")
+st.sidebar.caption("Drag the sliders to push the shaded basin in the desired direction.")
 
-nudge_lon = st.sidebar.slider(
-    "East / West (Longitude)", 
-    min_value=-0.10, max_value=0.10, value=0.00, step=0.005,
-    help="Drag right to move East (▶), left to move West (◀)."
-)
+# We use 'key' parameters so the Reset button can easily snap them back to 0.0
+push_north = st.sidebar.slider("▲ Push North", min_value=0.00, max_value=0.10, value=0.00, step=0.005, key="push_north")
+push_south = st.sidebar.slider("▼ Push South", min_value=0.00, max_value=0.10, value=0.00, step=0.005, key="push_south")
+push_east = st.sidebar.slider("▶ Push East", min_value=0.00, max_value=0.10, value=0.00, step=0.005, key="push_east")
+push_west = st.sidebar.slider("◀ Push West", min_value=0.00, max_value=0.10, value=0.00, step=0.005, key="push_west")
 
-nudge_lat = st.sidebar.slider(
-    "North / South (Latitude)", 
-    min_value=-0.10, max_value=0.10, value=0.00, step=0.005,
-    help="Drag up to move North (▲), down to move South (▼)."
-)
+if st.sidebar.button("🔄 Reset All to Center"):
+    st.session_state["push_north"] = 0.00
+    st.session_state["push_south"] = 0.00
+    st.session_state["push_east"] = 0.00
+    st.session_state["push_west"] = 0.00
+    st.rerun()
 
-if st.sidebar.button("🔄 Reset Alignment"):
-    nudge_lon = 0.00
-    nudge_lat = 0.00
+# Calculate net movement
+nudge_lat = push_north - push_south
+nudge_lon = push_east - push_west
 
 # --- GEOJSON DATA ---
 geojson_data = {"type": "FeatureCollection", "features": [
