@@ -4,28 +4,54 @@ from streamlit_folium import st_folium
 import copy
 
 st.set_page_config(page_title="Tagoloan River Basin Hazard Map", page_icon="🌊", layout="wide")
-st.sidebar.title(" Tagoloan River Basin")
-st.sidebar.markdown("**PAGASA / DENR-MGB Hazard Map**")
-st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
 
-# --- INTERACTIVE NUDGE CONTROLS (No code editing required!) ---
+# --- LAYOUT: TITLE AND COMPASS ---
+col_title, col_compass = st.columns([5, 1])
+
+with col_title:
+    st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
+    st.caption("PAGASA / DENR-MGB Hazard Map. Use the sidebar sliders to align the shaded basin with the actual river.")
+
+with col_compass:
+    compass_html = """
+    <div style="display: flex; flex-direction: column; align-items: center;">
+        <div style="position: relative; width: 110px; height: 110px; border: 2px solid #333; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <div style="position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-weight: bold; color: #d32f2f; font-size: 13px;">N ▲</div>
+            <div style="position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-weight: bold; color: #333; font-size: 13px;">S ▼</div>
+            <div style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-weight: bold; color: #333; font-size: 13px;">◀ W</div>
+            <div style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-weight: bold; color: #333; font-size: 13px;">E ▶</div>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; background-color: #333; border-radius: 50%;"></div>
+        </div>
+        <div style="margin-top: 8px; font-size: 11px; text-align: center; color: #555; line-height: 1.2;">
+            Shift layer:<br>
+            <b>▲ North</b> | <b>▼ South</b><br>
+            <b>◀ West</b> | <b>East ▶</b>
+        </div>
+    </div>
+    """
+    st.markdown(compass_html, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# --- SIDEBAR CONTROLS ---
+st.sidebar.title("⚙️ Map Controls")
 st.sidebar.markdown("---")
-st.sidebar.subheader("️ Align Map Layer")
+st.sidebar.subheader(" Align Map Layer")
 st.sidebar.caption("Use your mouse to drag these sliders to align the shaded basin with the actual river on the base map.")
 
 nudge_lon = st.sidebar.slider(
     "East / West (Longitude)", 
     min_value=-0.10, max_value=0.10, value=0.00, step=0.005,
-    help="Drag right to move East, left to move West."
+    help="Drag right to move East (▶), left to move West (◀)."
 )
 
 nudge_lat = st.sidebar.slider(
     "North / South (Latitude)", 
     min_value=-0.10, max_value=0.10, value=0.00, step=0.005,
-    help="Drag up to move North, down to move South."
+    help="Drag up to move North (▲), down to move South (▼)."
 )
 
-if st.sidebar.button(" Reset Alignment"):
+if st.sidebar.button("🔄 Reset Alignment"):
     nudge_lon = 0.00
     nudge_lat = 0.00
 
