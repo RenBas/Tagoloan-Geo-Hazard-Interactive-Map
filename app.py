@@ -2,6 +2,7 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import copy
+import math
 
 st.set_page_config(page_title="Tagoloan River Basin Hazard Map", page_icon="🌊", layout="wide")
 
@@ -10,7 +11,7 @@ col_title, col_compass = st.columns([5, 1])
 
 with col_title:
     st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
-    st.caption("PAGASA / DENR-MGB Hazard Map. Use the sidebar sliders to push the shaded basin into alignment with the actual river.")
+    st.caption("PAGASA / DENR-MGB Hazard Map. Use the sidebar controls to align, rotate, and scale the shaded basin.")
 
 with col_compass:
     compass_html = """
@@ -23,7 +24,7 @@ with col_compass:
             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; background-color: #333; border-radius: 50%;"></div>
         </div>
         <div style="margin-top: 8px; font-size: 11px; text-align: center; color: #555; line-height: 1.2;">
-            Push layer:<br>
+            Shift layer:<br>
             <b>▲ N</b> | <b>▼ S</b> | <b>◀ W</b> | <b>E ▶</b>
         </div>
     </div>
@@ -32,23 +33,35 @@ with col_compass:
 
 st.markdown("---")
 
-# --- SIDEBAR CONTROLS (4 DIRECTIONAL SLIDERS) ---
+# --- SIDEBAR CONTROLS ---
 st.sidebar.title("⚙️ Map Controls")
 st.sidebar.markdown("---")
-st.sidebar.subheader("🧭 Align Map Layer")
-st.sidebar.caption("Drag the sliders to push the shaded basin in the desired direction.")
 
-# We use 'key' parameters so the Reset button can easily snap them back to 0.0
+# 1. TRANSLATION (Directional Sliders)
+st.sidebar.subheader("🧭 1. Shift Layer")
+st.sidebar.caption("Drag to push the basin in any direction.")
+
 push_north = st.sidebar.slider("▲ Push North", min_value=0.00, max_value=0.10, value=0.00, step=0.005, key="push_north")
 push_south = st.sidebar.slider("▼ Push South", min_value=0.00, max_value=0.10, value=0.00, step=0.005, key="push_south")
 push_east = st.sidebar.slider("▶ Push East", min_value=0.00, max_value=0.10, value=0.00, step=0.005, key="push_east")
 push_west = st.sidebar.slider("◀ Push West", min_value=0.00, max_value=0.10, value=0.00, step=0.005, key="push_west")
 
+# 2. FINE-TUNING DIALS (Rotation & Scale)
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔄 2. Fine-Tuning Dials")
+st.sidebar.caption("Rotate and scale the basin to perfectly match the river's angle and size.")
+
+rotation_deg = st.sidebar.slider("🔄 Rotation (Degrees)", min_value=-45.0, max_value=45.0, value=0.0, step=1.0, key="rotation", help="Spin the map clockwise or counter-clockwise.")
+scale_factor = st.sidebar.slider("🔍 Scale (Size)", min_value=0.80, max_value=1.20, value=1.00, step=0.01, key="scale", help="Shrink (<1.0) or grow (>1.0) the basin.")
+
+# Reset Button
 if st.sidebar.button("🔄 Reset All to Center"):
     st.session_state["push_north"] = 0.00
     st.session_state["push_south"] = 0.00
     st.session_state["push_east"] = 0.00
     st.session_state["push_west"] = 0.00
+    st.session_state["rotation"] = 0.0
+    st.session_state["scale"] = 1.00
     st.rerun()
 
 # Calculate net movement
@@ -79,24 +92,49 @@ geojson_data = {"type": "FeatureCollection", "features": [
 {"type": "Feature", "properties": {"name": "Water level station — mid-river", "type": "water_level_station", "operator": "PAGASA"}, "geometry": {"type": "Point", "coordinates": [124.840, 8.278]}}
 ]}
 
-# --- NUDGE FUNCTION ---
-def nudge_geojson(geojson, d_lon, d_lat):
+# --- TRANSFORMATION FUNCTION (Translate, Rotate, Scale) ---
+def transform_geojson(geojson, d_lon, d_lat, rotation_deg, scale_factor):
     nudged = copy.deepcopy(geojson)
+    
+    # Find approximate center of the basin for rotation/scaling pivot
+    cx, cy = 124.75, 8.42 
+    
+    # Convert rotation to radians
+    theta = math.radians(rotation_deg)
+    cos_t = math.cos(theta)
+    sin_t = math.sin(theta)
+
     for feature in nudged['features']:
         geom = feature['geometry']
+        
+        def apply_transform(x, y):
+            # 1. Scale around center
+            x_s = cx + (x - cx) * scale_factor
+            y_s = cy + (y - cy) * scale_factor
+            
+            # 2. Rotate around center
+            dx = x_s - cx
+            dy = y_s - cy
+            x_r = cx + (dx * cos_t - dy * sin_t)
+            y_r = cy + (dx * sin_t + dy * cos_t)
+            
+            # 3. Translate (Nudge)
+            return x_r + d_lon, y_r + d_lat
+
         if geom['type'] == 'Polygon':
             for ring in geom['coordinates']:
                 for i, coord in enumerate(ring):
-                    ring[i] = [coord[0] + d_lon, coord[1] + d_lat]
+                    ring[i] = list(apply_transform(coord[0], coord[1]))
         elif geom['type'] == 'LineString':
             for i, coord in enumerate(geom['coordinates']):
-                geom['coordinates'][i] = [coord[0] + d_lon, coord[1] + d_lat]
+                geom['coordinates'][i] = list(apply_transform(coord[0], coord[1]))
         elif geom['type'] == 'Point':
-            geom['coordinates'] = [geom['coordinates'][0] + d_lon, geom['coordinates'][1] + d_lat]
+            geom['coordinates'] = list(apply_transform(geom['coordinates'][0], geom['coordinates'][1]))
+            
     return nudged
 
-# Apply the interactive nudge
-final_geojson = nudge_geojson(geojson_data, nudge_lon, nudge_lat)
+# Apply transformations
+final_geojson = transform_geojson(geojson_data, nudge_lon, nudge_lat, rotation_deg, scale_factor)
 
 # --- CREATE FOLIUM MAP ---
 m = folium.Map(location=[8.42, 124.75], zoom_start=10, tiles='CartoDB positron')
