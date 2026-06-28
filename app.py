@@ -4,16 +4,30 @@ from streamlit_folium import st_folium
 import copy
 
 st.set_page_config(page_title="Tagoloan River Basin Hazard Map", page_icon="🌊", layout="wide")
-st.sidebar.title("🌊 Tagoloan River Basin")
+st.sidebar.title(" Tagoloan River Basin")
 st.sidebar.markdown("**PAGASA / DENR-MGB Hazard Map**")
 st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
 
-# --- ADJUST THESE VALUES TO ALIGN THE MAP ---
-# Change these numbers to slide the map. 
-# Positive NUDGE_LON moves it Right, Negative moves it Left.
-# Positive NUDGE_LAT moves it Up, Negative moves it Down.
-NUDGE_LON = 0.02  # Try values like 0.02 or -0.02
-NUDGE_LAT = 0.02  # Try values like 0.02 or -0.02
+# --- INTERACTIVE NUDGE CONTROLS (No code editing required!) ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("️ Align Map Layer")
+st.sidebar.caption("Use your mouse to drag these sliders to align the shaded basin with the actual river on the base map.")
+
+nudge_lon = st.sidebar.slider(
+    "East / West (Longitude)", 
+    min_value=-0.10, max_value=0.10, value=0.00, step=0.005,
+    help="Drag right to move East, left to move West."
+)
+
+nudge_lat = st.sidebar.slider(
+    "North / South (Latitude)", 
+    min_value=-0.10, max_value=0.10, value=0.00, step=0.005,
+    help="Drag up to move North, down to move South."
+)
+
+if st.sidebar.button(" Reset Alignment"):
+    nudge_lon = 0.00
+    nudge_lat = 0.00
 
 # --- GEOJSON DATA ---
 geojson_data = {"type": "FeatureCollection", "features": [
@@ -55,8 +69,8 @@ def nudge_geojson(geojson, d_lon, d_lat):
             geom['coordinates'] = [geom['coordinates'][0] + d_lon, geom['coordinates'][1] + d_lat]
     return nudged
 
-# Apply the nudge to the data
-final_geojson = nudge_geojson(geojson_data, NUDGE_LON, NUDGE_LAT)
+# Apply the interactive nudge
+final_geojson = nudge_geojson(geojson_data, nudge_lon, nudge_lat)
 
 # --- CREATE FOLIUM MAP ---
 m = folium.Map(location=[8.42, 124.75], zoom_start=10, tiles='CartoDB positron')
