@@ -1,30 +1,26 @@
 import streamlit as st
-import plotly.graph_objects as go
+import folium
+from streamlit_folium import st_folium
+import json
 
-# --- STREAMLIT PAGE CONFIG (Must be first) ---
+# --- PAGE CONFIG ---
 st.set_page_config(
     page_title="Tagoloan River Basin Hazard Map",
-    page_icon="🌊",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_icon="",
+    layout="wide"
 )
 
-# --- SIDEBAR UI ---
-st.sidebar.title("🌊 Tagoloan River Basin")
+# --- SIDEBAR ---
+st.sidebar.title(" Tagoloan River Basin")
 st.sidebar.markdown("**PAGASA / DENR-MGB Hazard Map**")
 st.sidebar.markdown("---")
-st.sidebar.markdown("""
-**Data Sources:**
-*   **Basin Boundary:** DOST-PAGASA
-*   **Flood/Landslide Prone Areas:** DENR-MGB
-*   **Monitoring Stations:** PAGASA Telemetry Network
-""")
+st.sidebar.info("This interactive map uses Folium, which requires no external API keys and is fully stable on Streamlit Cloud.")
 
 # --- MAIN UI ---
 st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
 st.caption("Traced from DOST-PAGASA / DENR-MGB location maps.")
 
-# --- EMBEDDED GEOJSON DATA ---
+# --- GEOJSON DATA ---
 geojson_data = {
   "type": "FeatureCollection",
   "features": [
@@ -51,96 +47,54 @@ geojson_data = {
   ]
 }
 
-# --- SAFE PLOTTING WITH ERROR HANDLING ---
-try:
-    fig = go.Figure()
+# --- CREATE FOLIUM MAP ---
+# We use CartoDB Positron tiles because they are free and require no API key
+m = folium.Map(location=[8.42, 124.75], zoom_start=10, tiles='CartoDB positron')
 
-    # 1. Add Polygons
-    for feature in geojson_data["features"]:
-        geom = feature["geometry"]
-        props = feature["properties"]
-        
-        if geom["type"] == "Polygon":
-            coords = geom["coordinates"][0]
-            lons = [c[0] for c in coords]
-            lats = [c[1] for c in coords]
-            
-            # Safe defaults to prevent UnboundLocalError
-            color, opacity, line_color, line_width = "gray", 0.2, "black", 1
-            
-            if props["type"] == "basin_boundary":
-                color, opacity, line_color, line_width = "rgba(0,0,0,0)", 0, "#333333", 3
-            elif props["type"] == "flood_prone":
-                if props["hazard_level"] == "very_high":
-                    color, opacity, line_color, line_width = "rgba(220, 20, 60, 0.5)", 0.5, "#8B0000", 1
-                else:
-                    color, opacity, line_color, line_width = "rgba(255, 165, 0, 0.4)", 0.4, "#8B0000", 1
-            elif props["type"] == "landslide_prone":
-                color, opacity, line_color, line_width = "rgba(139, 69, 19, 0.4)", 0.4, "#8B4513", 1
-                
-            fig.add_trace(go.Scattermapbox(
-                mode="lines", lon=lons, lat=lats, fill="toself", fillcolor=color, opacity=opacity,
-                line=dict(width=line_width, color=line_color), name=props["name"],
-                hovertemplate=f"<b>{props['name']}</b><br>Hazard: {props.get('hazard_level', 'N/A')}<br>{props.get('description', '')}<extra></extra>"
-            ))
-
-    # 2. Add Rivers
-    for feature in geojson_data["features"]:
-        if feature["geometry"]["type"] == "LineString":
-            coords = feature["geometry"]["coordinates"]
-            lons = [c[0] for c in coords]
-            lats = [c[1] for c in coords]
-            props = feature["properties"]
-            width = 4 if props.get("stream_order") == 1 else 2
-            color = "#0000FF" if props.get("stream_order") == 1 else "#1E90FF"
-            
-            fig.add_trace(go.Scattermapbox(
-                mode="lines", lon=lons, lat=lats, line=dict(width=width, color=color), name=props["name"],
-                hovertemplate=f"<b>{props['name']}</b><extra></extra>"
-            ))
-
-    # 3. Add Stations
-    stations = {
-        "telemetry_raingauge": {"color": "#00BFFF", "symbol": "circle", "size": 12, "name": "Telemetry Raingauges"},
-        "synoptic_station": {"color": "#32CD32", "symbol": "square", "size": 14, "name": "Synoptic Stations"},
-        "water_level_station": {"color": "#9400D3", "symbol": "diamond", "size": 16, "name": "Water Level Stations"}
-    }
-
-    for st_type, style in stations.items():
-        lons, lats, names, hover_texts = [], [], [], []
-        for feature in geojson_data["features"]:
-            if feature["properties"]["type"] == st_type:
-                lons.append(feature["geometry"]["coordinates"][0])
-                lats.append(feature["geometry"]["coordinates"][1])
-                names.append(feature["properties"]["name"])
-                text = f"<b>{feature['properties']['name']}</b><br>Operator: {feature['properties'].get('operator', 'N/A')}"
-                if "alert" in feature["properties"]:
-                    text += f"<br>⚠️ Alert: {feature['properties']['alert']} | Critical: {feature['properties']['critical']}"
-                hover_texts.append(text)
-
-        # Only add trace if there are points to prevent empty list errors
-        if lons:
-            fig.add_trace(go.Scattermapbox(
-                mode="markers", lon=lons, lat=lats,
-                marker=dict(size=style["size"], color=style["color"], symbol=style["symbol"], line=dict(width=2, color="white")),
-                name=style["name"], text=names, hovertemplate="%{customdata}<extra></extra>", customdata=hover_texts
-            ))
-
-    # 4. Layout (Using carto-positron for maximum stability on Streamlit Cloud)
-    fig.update_layout(
-        mapbox=dict(style="carto-positron", bearing=0, pitch=0, zoom=9, center=dict(lat=8.42, lon=124.75)),
-        margin={"r": 0, "t": 0, "l": 0, "b": 0},
-        height=700,
-        legend=dict(yanchor="bottom", y=0.02, xanchor="right", x=0.98, bgcolor="rgba(255, 255, 255, 0.9)"),
-        hoverlabel=dict(bgcolor="white", font_size=12)
+# Add GeoJSON Polygons (Hazards & Boundaries)
+folium.GeoJson(
+    geojson_data,
+    name='Hazard Zones',
+    style_function=lambda x: {
+        'fillColor': '#DC143C' if x['properties'].get('hazard_level') == 'very_high' else 
+                     '#FFA500' if x['properties'].get('type') == 'flood_prone' else 
+                     '#8B4513' if x['properties'].get('type') == 'landslide_prone' else 
+                     'transparent',
+        'color': 'black',
+        'weight': 1 if x['properties'].get('type') != 'basin_boundary' else 3,
+        'fillOpacity': 0.5 if x['properties'].get('type') != 'basin_boundary' else 0
+    },
+    tooltip=folium.GeoJsonTooltip(
+        fields=['name', 'hazard_level', 'description'],
+        aliases=['Zone:', 'Hazard Level:', 'Description:'],
+        style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
     )
+).add_to(m)
 
-    st.plotly_chart(fig, use_container_width=True)
+# Add Markers for Stations
+for feature in geojson_data["features"]:
+    if feature["geometry"]["type"] == "Point":
+        lat = feature["geometry"]["coordinates"][1]
+        lon = feature["geometry"]["coordinates"][0]
+        name = feature["properties"]["name"]
+        stype = feature["properties"]["type"]
+        
+        # Choose icon color based on station type
+        if 'raingauge' in stype: color = 'blue'
+        elif 'synoptic' in stype: color = 'green'
+        else: color = 'red'
+        
+        folium.Marker(
+            location=[lat, lon],
+            popup=folium.Popup(name, max_width=200),
+            icon=folium.Icon(color=color, icon='info-sign')
+        ).add_to(m)
 
-except Exception as e:
-    # This catches the crash and shows the error on the screen instead of breaking the app
-    st.error("⚠️ The map encountered an error while generating.")
-    st.exception(e)
+# Add Layer Control
+folium.LayerControl().add_to(m)
+
+# --- RENDER IN STREAMLIT ---
+st_folium(m, width=1200, height=700)
 
 st.markdown("---")
 st.caption("Data visualization generated using DOST-PAGASA and DENR-MGB tracing parameters.")
