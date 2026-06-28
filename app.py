@@ -5,12 +5,12 @@ from streamlit_folium import st_folium
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="Tagoloan River Basin Hazard Map",
-    page_icon="",
+    page_icon="🌊",
     layout="wide"
 )
 
 # --- SIDEBAR ---
-st.sidebar.title(" Tagoloan River Basin")
+st.sidebar.title("🌊 Tagoloan River Basin")
 st.sidebar.markdown("**PAGASA / DENR-MGB Hazard Map**")
 st.sidebar.markdown("---")
 st.sidebar.info("This interactive map uses Folium. It requires no external API keys and is fully stable on Streamlit Cloud.")
@@ -83,10 +83,11 @@ for feature in geojson_data["features"]:
         elif 'synoptic' in stype: color = 'green'
         else: color = 'red'
         
+        # FIX: Explicitly set prefix='fa' and icon='info' to bypass Folium version validation errors
         folium.Marker(
             location=[lat, lon],
             popup=folium.Popup(name, max_width=200),
-            icon=folium.Icon(color=color, icon='info') # FIXED: Changed 'info-sign' to 'info'
+            icon=folium.Icon(color=color, icon='info', prefix='fa')
         ).add_to(m)
 
 # Add Layer Control
