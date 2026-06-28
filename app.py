@@ -1,11 +1,19 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+import copy
 
 st.set_page_config(page_title="Tagoloan River Basin Hazard Map", page_icon="🌊", layout="wide")
 st.sidebar.title("🌊 Tagoloan River Basin")
 st.sidebar.markdown("**PAGASA / DENR-MGB Hazard Map**")
 st.title("🗺️ Tagoloan River Basin — Interactive Hazard Map")
+
+# --- ADJUST THESE VALUES TO ALIGN THE MAP ---
+# Change these numbers to slide the map. 
+# Positive NUDGE_LON moves it Right, Negative moves it Left.
+# Positive NUDGE_LAT moves it Up, Negative moves it Down.
+NUDGE_LON = 0.00  # Try values like 0.02 or -0.02
+NUDGE_LAT = 0.00  # Try values like 0.02 or -0.02
 
 # --- GEOJSON DATA ---
 geojson_data = {"type": "FeatureCollection", "features": [
@@ -31,11 +39,30 @@ geojson_data = {"type": "FeatureCollection", "features": [
 {"type": "Feature", "properties": {"name": "Water level station — mid-river", "type": "water_level_station", "operator": "PAGASA"}, "geometry": {"type": "Point", "coordinates": [124.840, 8.278]}}
 ]}
 
+# --- NUDGE FUNCTION ---
+def nudge_geojson(geojson, d_lon, d_lat):
+    nudged = copy.deepcopy(geojson)
+    for feature in nudged['features']:
+        geom = feature['geometry']
+        if geom['type'] == 'Polygon':
+            for ring in geom['coordinates']:
+                for i, coord in enumerate(ring):
+                    ring[i] = [coord[0] + d_lon, coord[1] + d_lat]
+        elif geom['type'] == 'LineString':
+            for i, coord in enumerate(geom['coordinates']):
+                geom['coordinates'][i] = [coord[0] + d_lon, coord[1] + d_lat]
+        elif geom['type'] == 'Point':
+            geom['coordinates'] = [geom['coordinates'][0] + d_lon, geom['coordinates'][1] + d_lat]
+    return nudged
+
+# Apply the nudge to the data
+final_geojson = nudge_geojson(geojson_data, NUDGE_LON, NUDGE_LAT)
+
 # --- CREATE FOLIUM MAP ---
 m = folium.Map(location=[8.42, 124.75], zoom_start=10, tiles='CartoDB positron')
 
 folium.GeoJson(
-    geojson_data,
+    final_geojson,
     name='Hazard Zones & Rivers',
     style_function=lambda x: {
         'fillColor': '#DC143C' if x['properties'].get('hazard_level') == 'very_high' else 
@@ -46,12 +73,10 @@ folium.GeoJson(
         'weight': 1 if x['properties'].get('type') != 'basin_boundary' else 3,
         'fillOpacity': 0.5 if x['properties'].get('type') != 'basin_boundary' else 0
     },
-    # FIX: Only request 'name' because it exists in EVERY feature. 
-    # Requesting missing fields like 'description' crashes newer Folium versions.
     popup=folium.GeoJsonPopup(fields=['name'])
 ).add_to(m)
 
-for feature in geojson_data["features"]:
+for feature in final_geojson["features"]:
     if feature["geometry"]["type"] == "Point":
         lat = feature["geometry"]["coordinates"][1]
         lon = feature["geometry"]["coordinates"][0]
